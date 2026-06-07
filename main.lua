@@ -164,6 +164,7 @@ function love.update(dt)
 
     -- drawing
     local function finalize_draw()
+        love.graphics.setColor(1,1,1,1)
         love.graphics.setCanvas(image)
         love.graphics.draw(scribble)
         love.graphics.setCanvas()
@@ -230,20 +231,25 @@ function love.update(dt)
 
             local function children(node)
                 local x, y, w, h = unpack(node)
-                if w == 1 and h == 1 then return nil end
+
+                if w <= 1 and h <= 1 then
+                    return nil
+                end
+
                 if w >= h then
                     local w1 = math.floor(w / 2)
                     local w2 = w - w1
+
                     return
-                        {x,    y, w1, h},
-                        {x+w1, y, w2, h}
+                        {x,     y, w1, h},
+                        {x+w1,  y, w2, h}
                 else
                     local h1 = math.floor(h / 2)
                     local h2 = h - h1
 
                     return
-                        {x, y,    w, h1},
-                        {x, y+h1, w, h2}
+                        {x, y,     w, h1},
+                        {x, y+h1,  w, h2}
                 end
             end
 
@@ -304,7 +310,7 @@ function love.update(dt)
                         sum[y][x] = 0
                     else
                         sum[y][x] =
-                            wall[y][x]
+                            wall[y-1][x-1]
                             + sum[y-1][x]
                             + sum[y][x-1]
                             - sum[y-1][x-1]
@@ -314,46 +320,95 @@ function love.update(dt)
 
             local function wall_count(node)
                 local x, y, w, h = unpack(node)
-                local x2 = x + w - 1
-                local y2 = y + h - 1
+
+                local x1, y1 = x, y
+                local x2, y2 = x + w, y + h
 
                 return
                     sum[y2][x2]
-                    - sum[y-1][x2]
-                    - sum[y2][x-1]
-                    + sum[y-1][x-1]
+                    - sum[y1][x2]
+                    - sum[y2][x1]
+                    + sum[y1][x1]
+            end
+
+            local function key(x,y,w,h)
+                return x .. "," .. y
             end
 
             local queue = {{mx,my,1,1}}
             local visited = {}
             love.graphics.setCanvas(scribble)
             love.graphics.setColor(cr,cg,cb,ca)
-            while queue do
+            while #queue > 0 do
                 local current = table.remove(queue, 1)
-                if visited[current] then goto continue end
-                visited[current] = true
-                love.graphics.rectangle("fill", current)
+                if visited[key(unpack(current))] then goto continue end
+                
+                visited[key(unpack(current))] = true
+                love.graphics.rectangle("fill", unpack(current))
+
                 while true do
-                    p = parent(current)
+                    local p = parent(current)
+                    if not p then break end
+
                     if wall_count(p) == 0 then
                         current = p
+
                         for x = current[1], current[1] + current[3] do
                             for y = current[2], current[2] + current[4] do
-                                visited[{x,y}] = true
+                                visited[key(x,y)] = true
                             end
                         end
-                        love.graphics.rectangle("fill", current)
+                        love.graphics.rectangle("fill", unpack(current))
                     else break end
                 end
-                local x = current[1] - 1
-                local y
-                for y = current[2], current[2] + current[4] do
-                    if not visited[{x,y}] and wall[y][x] == 0 then
-                        queue.insert({x,y,1,1})
+
+                local x1 = current[1]
+                local y1 = current[2]
+                local w  = current[3]
+                local h  = current[4]
+
+                local x2 = x1 + w - 1
+                local y2 = y1 + h - 1
+
+                -- left
+                if x1 > 0 then
+                    for y = y1, y2 do
+                        if wall[y][x1-1] == 0 and not visited[key(x1-1,y)] then
+                            table.insert(queue, {x1-1,y,1,1})
+                        end
                     end
                 end
+
+                -- right
+                if x2 < 599 then
+                    for y = y1, y2 do
+                        if wall[y][x2+1] == 0 and not visited[key(x2+1,y)] then
+                            table.insert(queue, {x2+1,y,1,1})
+                        end
+                    end
+                end
+
+                -- up
+                if y1 > 0 then
+                    for x = x1, x2 do
+                        if wall[y1-1][x] == 0 and not visited[key(x,y1-1)] then
+                            table.insert(queue, {x,y1-1,1,1})
+                        end
+                    end
+                end
+
+                -- down
+                if y2 < 359 then
+                    for x = x1, x2 do
+                        if wall[y2+1][x] == 0 and not visited[key(x,y2+1)] then
+                            table.insert(queue, {x,y2+1,1,1})
+                        end
+                    end
+                end
+
                 ::continue::
             end
+
             love.graphics.setCanvas()
             finalize_draw()
         end
