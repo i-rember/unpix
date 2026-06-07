@@ -61,9 +61,13 @@ end
 
 
 
+local undo_buffer = {}
+local redo_buffer = {}
+
 local last_mx, last_my = nil, nil
 
 local mouse_click = -2 -- =-1 if just released, <-1 if not pressed, =1 if just pressed, >1 if held
+local mouse_right = -2 -- above, for right click
 local draw = -2 -- above, for image
 
 local color_selected = 0 -- the selected color on the wheel
@@ -77,6 +81,16 @@ local assets -- the loaded assets
 local image -- the current image
 local scribble_def -- blank image
 local scribble -- the marks made by the current tool
+
+function undo()
+    table.insert(redo_buffer, canvas_clone(image))
+    image = table.remove(undo_buffer)
+end
+
+function redo()
+    table.insert(undo_buffer, canvas_clone(image))
+    image = table.remove(redo_buffer)
+end
 
 function love.wheelmoved(x, y)
     if y > 0 then
@@ -94,8 +108,6 @@ function love.wheelmoved(x, y)
         color_tween = color_tween - 8
     end
 end
-
-function undo() end
 
 function love.load()
     assets = {
@@ -128,6 +140,11 @@ function love.update(dt)
     else
         mouse_click = mouse_click > 0 and -1 or mouse_click - 1
     end
+    if love.mouse.isDown(2) then
+        mouse_right = mouse_right < 0 and 1 or mouse_right + 1
+    else
+        mouse_right = mouse_right > 0 and -1 or mouse_right - 1
+    end
 
     -- tweens
     color_tween = color_tween + (color_selected - color_tween) / 5
@@ -141,29 +158,42 @@ function love.update(dt)
     for i = 0, 7 do
         if insideRect(love.mouse.getX(), love.mouse.getY(), 4, 2+i*29, 28, 28) then
             tool_hover = i
-            if mouse_click == 1 and i ~= 7 then
-                tool_selected = i
-                bigtool_offset = 10
+            if mouse_click == 1 then
+                if i == 7 then
+                    if #undo_buffer > 0 then undo() end
+                else
+                    tool_selected = i
+                    bigtool_offset = 10
+                end
             elseif mouse_click > 0 then
                 tool_clicked = i
             end
             break
         end
     end
-    if love.mouse.isDown(2) then
-        tool_selected = -1
+    local ir = insideRect(love.mouse.getX(), love.mouse.getY(), 4, 205, 28, 28)
+    if mouse_right == 1 then
+        if ir then
+            if #redo_buffer > 0 then redo() end
+        else
+            tool_selected = -1
+        end
+    elseif mouse_right > 0 and ir then
+        tool_clicked = 7
     end
 
     -- draw input
     draw = draw + sign(draw)
     if mouse_click == 1 and love.mouse.getX() >= 37 then -- TODO: replace the 37 here when the UI can move
         draw = 1
-    elseif mouse_click == -1 then
+    elseif mouse_click == -1 and draw > 0 then
         draw = -1
     end
 
     -- drawing
     local function finalize_draw()
+        table.insert(undo_buffer, canvas_clone(image))
+        redo_buffer = {}
         love.graphics.setColor(1,1,1,1)
         love.graphics.setCanvas(image)
         love.graphics.draw(scribble)
@@ -506,4 +536,11 @@ function love.draw()
             0,  1, 1,  1, 1
         )
     end
+
+    if false then -- debug
+        love.graphics.setColor(0,1,1,1)
+        love.graphics.print("Undo buffer size: " .. #undo_buffer, 100, 10)
+        love.graphics.print("Redo buffer size: " .. #redo_buffer, 100, 60)
+    end
+    love.graphics.setColor(1,1,1,1)
 end
