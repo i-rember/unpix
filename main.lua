@@ -38,6 +38,7 @@ function sign(n)
 end
 
 function canvas_clone(canvas)
+    love.graphics.setColor(1,1,1,1)
     w, h = canvas:getDimensions()
     local copy = love.graphics.newCanvas(w, h) 
     love.graphics.setCanvas(copy)
@@ -148,7 +149,7 @@ function love.update(dt)
 
     -- tweens
     color_tween = color_tween + (color_selected - color_tween) / 5
-    bigtool_offset = bigtool_offset - bigtool_offset / 10
+    bigtool_offset = bigtool_offset * 9 / 10
 
     -- tool buttons
     tool_hover = -1
@@ -262,7 +263,7 @@ function love.update(dt)
             local function children(node)
                 local x, y, w, h = unpack(node)
 
-                if w <= 1 and h <= 1 then
+                if w == 1 and h == 1 then
                     return nil
                 end
 
@@ -293,7 +294,7 @@ function love.update(dt)
             end
 
             local function parent(target)
-                current = root
+                local current = root
                 while true do
                     local c1, c2 = children(current)
 
@@ -383,8 +384,8 @@ function love.update(dt)
                     if wall_count(p) == 0 then
                         current = p
 
-                        for x = current[1], current[1] + current[3] do
-                            for y = current[2], current[2] + current[4] do
+                        for x = current[1], current[1] + current[3] - 1 do
+                            for y = current[2], current[2] + current[4] - 1 do
                                 visited[key(x,y)] = true
                             end
                         end
